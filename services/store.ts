@@ -34,18 +34,18 @@ import {
 } from '@/lib/calculations/financial';
 
 const STORAGE_KEYS = {
-  PROFILES: 'family_expense_profiles_v3_prod',
-  PERIODS: 'family_expense_periods_v3_prod',
-  BUDGETS: 'family_expense_budgets_v3_prod',
-  MONEY_RECEIVED: 'family_expense_money_v3_prod',
-  EXPENSES: 'family_expense_expenses_v3_prod',
-  CATEGORIES: 'family_expense_categories_v3_prod',
-  SETTINGS: 'family_expense_settings_v3_prod',
-  NOTIFICATIONS: 'family_expense_notifications_v3_prod',
-  AUDIT_LOGS: 'family_expense_audit_logs_v3_prod',
-  SESSION: 'family_expense_session_v3_prod',
-  PASSWORDS: 'family_expense_credentials_vault_v3_prod',
-  REQUESTS: 'family_expense_access_requests_v3_prod',
+  PROFILES: 'family_expense_profiles_v4_prod',
+  PERIODS: 'family_expense_periods_v4_prod',
+  BUDGETS: 'family_expense_budgets_v4_prod',
+  MONEY_RECEIVED: 'family_expense_money_v4_prod',
+  EXPENSES: 'family_expense_expenses_v4_prod',
+  CATEGORIES: 'family_expense_categories_v4_prod',
+  SETTINGS: 'family_expense_settings_v4_prod',
+  NOTIFICATIONS: 'family_expense_notifications_v4_prod',
+  AUDIT_LOGS: 'family_expense_audit_logs_v4_prod',
+  SESSION: 'family_expense_session_v4_prod',
+  PASSWORDS: 'family_expense_credentials_vault_v4_prod',
+  REQUESTS: 'family_expense_access_requests_v4_prod',
 };
 
 // Isolated memory cache

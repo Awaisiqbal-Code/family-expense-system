@@ -50,7 +50,7 @@ export const INITIAL_CATEGORIES: Category[] = [
 export const INITIAL_PROFILES: Profile[] = [
   {
     id: 'usr-admin-1',
-    full_name: 'Head of Family',
+    full_name: 'Awais Iqbal',
     username: 'admin',
     email: 'admin@family.local',
     phone: '+92 300 0000000',
@@ -76,11 +76,11 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
   {
     id: 'log-init',
     actor_id: 'usr-admin-1',
-    actor_name: 'System Admin',
+    actor_name: 'Awais Iqbal',
     action: 'SYSTEM_INITIALIZED',
     entity_type: 'system',
     entity_id: 'system-1',
-    metadata: { note: 'Production instance initialized.' },
+    metadata: { note: 'Production instance initialized for Awais Iqbal.' },
     created_at: new Date().toISOString(),
   },
 ];
