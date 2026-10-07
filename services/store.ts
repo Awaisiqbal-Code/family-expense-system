@@ -114,6 +114,7 @@ function initBrowserStorage() {
       memorySettings = JSON.parse(localStorage.getItem(STORAGE_KEYS.SETTINGS) || '{}');
       memoryNotifications = JSON.parse(localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS) || '[]');
       memoryAuditLogs = JSON.parse(localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS) || '[]');
+      memoryAccessRequests = JSON.parse(localStorage.getItem(STORAGE_KEYS.REQUESTS) || '[]');
       const storedVault = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
       if (storedVault) passwordVault = JSON.parse(storedVault);
 
@@ -127,6 +128,10 @@ function initBrowserStorage() {
 
 if (typeof window !== 'undefined') {
   initBrowserStorage();
+  window.addEventListener('storage', (e) => {
+    initBrowserStorage();
+    notifyListeners();
+  });
 }
 
 function persist(key: string, data: any) {
@@ -176,6 +181,18 @@ export const DataStore = {
     notifyListeners();
   },
 
+  getPasswordVault(): Record<string, string> {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
+        if (stored) {
+          passwordVault = { ...passwordVault, ...JSON.parse(stored) };
+        }
+      } catch {}
+    }
+    return passwordVault;
+  },
+
   // Authenticate using Username or Email and password
   authenticate(identifier: string, pass: string): { success: boolean; user?: Profile; error?: string } {
     const cleanId = identifier.trim().toLowerCase();
@@ -197,7 +214,8 @@ export const DataStore = {
     }
 
     // Verify against vault or standard defaults for initial seed accounts
-    const storedPass = passwordVault[user.id];
+    const vault = this.getPasswordVault();
+    const storedPass = vault[user.id];
     const isSeedUser = user.id.startsWith('usr-');
     const isValidPass =
       (storedPass && storedPass === cleanPass) ||
@@ -1059,6 +1077,14 @@ export const DataStore = {
   },
 
   getAccessRequests(): AccessRequest[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEYS.REQUESTS);
+      if (stored) {
+        try {
+          memoryAccessRequests = JSON.parse(stored);
+        } catch {}
+      }
+    }
     return memoryAccessRequests;
   },
 
@@ -1066,14 +1092,16 @@ export const DataStore = {
     const cleanUsername = req.username.trim().toLowerCase();
     const cleanEmail = req.email.trim().toLowerCase();
 
-    const existsInProfiles = memoryProfiles.some(
+    const profiles = this.getProfiles();
+    const existsInProfiles = profiles.some(
       (p) => p.username.toLowerCase() === cleanUsername || p.email.toLowerCase() === cleanEmail
     );
     if (existsInProfiles) {
       throw new Error('Username or email is already registered in the system.');
     }
 
-    const pendingExists = memoryAccessRequests.some(
+    const requests = this.getAccessRequests();
+    const pendingExists = requests.some(
       (r) => r.status === 'pending' && (r.username.toLowerCase() === cleanUsername || r.email.toLowerCase() === cleanEmail)
     );
     if (pendingExists) {
@@ -1091,7 +1119,7 @@ export const DataStore = {
       created_at: new Date().toISOString(),
     };
 
-    memoryAccessRequests.unshift(newReq);
+    memoryAccessRequests = [newReq, ...requests];
     persist(STORAGE_KEYS.REQUESTS, memoryAccessRequests);
 
     this.createNotification({
@@ -1115,7 +1143,8 @@ export const DataStore = {
   },
 
   approveAccessRequest(requestId: string): { profile: Profile; emailDispatched: { to: string; subject: string; body: string } } {
-    const req = memoryAccessRequests.find((r) => r.id === requestId);
+    const requests = this.getAccessRequests();
+    const req = requests.find((r) => r.id === requestId);
     if (!req) throw new Error('Access request not found.');
     if (req.status !== 'pending') throw new Error('Request has already been processed.');
 
@@ -1131,10 +1160,16 @@ export const DataStore = {
       updated_at: new Date().toISOString(),
     };
 
-    memoryProfiles.push(newProfile);
-    passwordVault[newProfile.id] = req.password || 'member123';
+    const profiles = this.getProfiles();
+    memoryProfiles = [...profiles, newProfile];
+
+    const vault = this.getPasswordVault();
+    vault[newProfile.id] = req.password || 'member123';
+    passwordVault = { ...vault };
+
     req.status = 'approved';
     req.approved_at = new Date().toISOString();
+    memoryAccessRequests = [...requests];
 
     persist(STORAGE_KEYS.PROFILES, memoryProfiles);
     persist(STORAGE_KEYS.PASSWORDS, passwordVault);

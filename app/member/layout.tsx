@@ -42,6 +42,29 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
     );
   }
 
+  // Security guard for unauthenticated members
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-card border border-border text-center shadow-premium">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-primary flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Authentication Required</h2>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-6">
+            Please log in to access your personal member portal.
+          </p>
+          <a
+            href="/login"
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary-dark rounded-xl shadow-sm"
+          >
+            Go to Login
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const handleFirstPasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
