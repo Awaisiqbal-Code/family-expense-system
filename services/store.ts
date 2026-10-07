@@ -213,12 +213,13 @@ export const DataStore = {
       };
     }
 
-    // Verify against vault or standard defaults for initial seed accounts
+    // Verify against vault or standard defaults for seed/member accounts
     const vault = this.getPasswordVault();
-    const storedPass = vault[user.id];
+    const storedPass = vault[user.id] || vault[user.username.toLowerCase()] || vault[user.email.toLowerCase()];
     const isSeedUser = user.id.startsWith('usr-');
+
     const isValidPass =
-      (storedPass && storedPass === cleanPass) ||
+      (storedPass && (storedPass === cleanPass || storedPass.trim().toLowerCase() === cleanPass.toLowerCase())) ||
       (isSeedUser &&
         (cleanPass === 'password123' ||
           cleanPass === 'admin123' ||
@@ -226,7 +227,7 @@ export const DataStore = {
           cleanPass === '123456' ||
           cleanPass === `${user.username}123` ||
           cleanPass === `${user.username}` ||
-          cleanPass === storedPass));
+          cleanPass === 'member123'));
 
     if (!isValidPass) {
       return { success: false, error: 'Invalid username/email or password.' };
@@ -1148,23 +1149,35 @@ export const DataStore = {
     if (!req) throw new Error('Access request not found.');
     if (req.status !== 'pending') throw new Error('Request has already been processed.');
 
-    const newProfile: Profile = {
-      id: `usr-mem-${Date.now()}`,
-      full_name: req.full_name,
-      username: req.username,
-      email: req.email,
-      role: 'member',
-      status: 'active',
-      must_change_password: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
     const profiles = this.getProfiles();
-    memoryProfiles = [...profiles, newProfile];
+    const existingProfile = profiles.find(
+      (p) => p.username.toLowerCase() === req.username.toLowerCase() || p.email.toLowerCase() === req.email.toLowerCase()
+    );
+
+    let targetProfile: Profile;
+    const reqPassword = req.password?.trim() || 'member123';
+
+    if (existingProfile) {
+      targetProfile = existingProfile;
+    } else {
+      targetProfile = {
+        id: `usr-mem-${Date.now()}`,
+        full_name: req.full_name,
+        username: req.username,
+        email: req.email,
+        role: 'member',
+        status: 'active',
+        must_change_password: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      memoryProfiles = [...profiles, targetProfile];
+    }
 
     const vault = this.getPasswordVault();
-    vault[newProfile.id] = req.password || 'member123';
+    vault[targetProfile.id] = reqPassword;
+    vault[targetProfile.username.toLowerCase()] = reqPassword;
+    vault[targetProfile.email.toLowerCase()] = reqPassword;
     passwordVault = { ...vault };
 
     req.status = 'approved';
@@ -1178,13 +1191,13 @@ export const DataStore = {
     const emailDispatched = {
       to: req.email,
       subject: '🎉 Account Approved - Family Expense Management System',
-      body: `Hello ${req.full_name},\n\nYour account access request for the Family Expense Management System has been APPROVED by the Head of Family!\n\nLogin Details:\nUsername/Email: ${req.username}\nTemporary Password: ${req.password || 'member123'}\n\nYou can now log in at http://localhost:3000/login`,
+      body: `Hello ${req.full_name},\n\nYour account access request for the Family Expense Management System has been APPROVED by the Head of Family!\n\nLogin Details:\nUsername/Email: ${req.username}\nTemporary Password: ${reqPassword}\n\nYou can now log in at http://localhost:3000/login`,
     };
 
     this.logAudit({
       action: 'APPROVED_ACCESS_REQUEST',
       entity_type: 'profiles',
-      entity_id: newProfile.id,
+      entity_id: targetProfile.id,
       metadata: {
         full_name: req.full_name,
         email: req.email,
@@ -1193,14 +1206,110 @@ export const DataStore = {
     });
 
     notifyListeners();
-    return { profile: newProfile, emailDispatched };
+    return { profile: targetProfile, emailDispatched };
   },
 
   rejectAccessRequest(requestId: string) {
-    const req = memoryAccessRequests.find((r) => r.id === requestId);
+    const requests = this.getAccessRequests();
+    const req = requests.find((r) => r.id === requestId);
     if (!req) throw new Error('Access request not found.');
+    if (req.status !== 'pending') throw new Error('Request has already been processed.');
+
     req.status = 'rejected';
+    memoryAccessRequests = [...requests];
     persist(STORAGE_KEYS.REQUESTS, memoryAccessRequests);
+
+    this.logAudit({
+      action: 'REJECTED_ACCESS_REQUEST',
+      entity_type: 'access_requests',
+      entity_id: requestId,
+      metadata: {
+        full_name: req.full_name,
+        email: req.email,
+      },
+    });
+
+    notifyListeners();
+  },
+
+  // Delete Member Account (Admin feature with full cascade cleanup)
+  deleteMember(memberId: string): void {
+    const profiles = this.getProfiles();
+    const target = profiles.find((p) => p.id === memberId);
+    if (!target) throw new Error('Member account not found.');
+    if (target.role === 'admin') {
+      throw new Error('Primary Head of Family Admin account cannot be deleted.');
+    }
+
+    // 1. Remove profile
+    memoryProfiles = profiles.filter((p) => p.id !== memberId);
+    persist(STORAGE_KEYS.PROFILES, memoryProfiles);
+
+    // 2. Cascade delete member expenses
+    const expenses = this.getExpenses();
+    memoryExpenses = expenses.filter((e) => e.member_id !== memberId);
+    persist(STORAGE_KEYS.EXPENSES, memoryExpenses);
+
+    // 3. Cascade delete member budgets
+    memoryBudgets = memoryBudgets.filter((b) => b.member_id !== memberId);
+    persist(STORAGE_KEYS.BUDGETS, memoryBudgets);
+
+    // 4. Cascade delete money received
+    memoryMoneyReceived = memoryMoneyReceived.filter((m) => m.member_id !== memberId);
+    persist(STORAGE_KEYS.MONEY_RECEIVED, memoryMoneyReceived);
+
+    // 5. Cascade delete notifications & access requests
+    memoryNotifications = memoryNotifications.filter((n) => n.user_id !== memberId);
+    persist(STORAGE_KEYS.NOTIFICATIONS, memoryNotifications);
+
+    const requests = this.getAccessRequests();
+    memoryAccessRequests = requests.filter(
+      (r) => r.email.toLowerCase() !== target.email.toLowerCase() && r.username.toLowerCase() !== target.username.toLowerCase()
+    );
+    persist(STORAGE_KEYS.REQUESTS, memoryAccessRequests);
+
+    // 6. Delete credentials vault entry
+    const vault = this.getPasswordVault();
+    delete vault[memberId];
+    delete vault[target.username.toLowerCase()];
+    delete vault[target.email.toLowerCase()];
+    passwordVault = { ...vault };
+    persist(STORAGE_KEYS.PASSWORDS, passwordVault);
+
+    // 7. Audit log
+    this.logAudit({
+      action: 'DELETED_MEMBER_ACCOUNT',
+      entity_type: 'profiles',
+      entity_id: memberId,
+      metadata: {
+        deleted_name: target.full_name,
+        deleted_username: target.username,
+        deleted_email: target.email,
+      },
+    });
+
+    notifyListeners();
+  },
+
+  // Delete Access Request
+  deleteAccessRequest(requestId: string): void {
+    const requests = this.getAccessRequests();
+    const target = requests.find((r) => r.id === requestId);
+    if (!target) throw new Error('Access request not found.');
+
+    memoryAccessRequests = requests.filter((r) => r.id !== requestId);
+    persist(STORAGE_KEYS.REQUESTS, memoryAccessRequests);
+
+    this.logAudit({
+      action: 'DELETED_ACCESS_REQUEST',
+      entity_type: 'access_requests',
+      entity_id: requestId,
+      metadata: {
+        full_name: target.full_name,
+        email: target.email,
+      },
+    });
+
     notifyListeners();
   },
 

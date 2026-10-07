@@ -27,6 +27,7 @@ import {
   Send,
   UserCheck,
   XCircle,
+  Trash2,
 } from 'lucide-react';
 
 export default function AdminMembersPage() {
@@ -55,6 +56,10 @@ export default function AdminMembersPage() {
 
   // Reset Password Modal State
   const [resetConfirmMember, setResetConfirmMember] = useState<Profile | null>(null);
+
+  // Deletion Confirm Modal States
+  const [deleteConfirmMember, setDeleteConfirmMember] = useState<Profile | null>(null);
+  const [deleteConfirmReq, setDeleteConfirmReq] = useState<AccessRequest | null>(null);
 
   const loadMembers = () => {
     const profiles = DataStore.getProfiles().filter((p) => p.role === 'member');
@@ -86,13 +91,33 @@ export default function AdminMembersPage() {
   };
 
   const handleRejectRequest = (req: AccessRequest) => {
-    if (window.confirm(`Reject access request for ${req.full_name} (${req.email})?`)) {
-      try {
-        DataStore.rejectAccessRequest(req.id);
-        success('Request Rejected', `Access request for ${req.full_name} was rejected.`);
-      } catch (err: any) {
-        error('Action Failed', err?.message);
-      }
+    try {
+      DataStore.rejectAccessRequest(req.id);
+      success('Request Rejected', `Access request for ${req.full_name} was rejected.`);
+    } catch (err: any) {
+      error('Action Failed', err?.message);
+    }
+  };
+
+  const handleConfirmDeleteMember = () => {
+    if (!deleteConfirmMember) return;
+    try {
+      DataStore.deleteMember(deleteConfirmMember.id);
+      success('Account Deleted', `Permanently removed member account for ${deleteConfirmMember.full_name}.`);
+      setDeleteConfirmMember(null);
+    } catch (err: any) {
+      error('Deletion Failed', err?.message);
+    }
+  };
+
+  const handleConfirmDeleteRequest = () => {
+    if (!deleteConfirmReq) return;
+    try {
+      DataStore.deleteAccessRequest(deleteConfirmReq.id);
+      success('Request Deleted', `Access request for ${deleteConfirmReq.full_name} was removed.`);
+      setDeleteConfirmReq(null);
+    } catch (err: any) {
+      error('Deletion Failed', err?.message);
     }
   };
 
@@ -253,9 +278,18 @@ export default function AdminMembersPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRejectRequest(req)}
-                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            className="text-amber-600 border-amber-200 hover:bg-amber-50"
                           >
                             <span>Reject</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDeleteConfirmReq(req)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 p-1.5"
+                            title="Permanently Delete Request"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </td>
@@ -382,11 +416,18 @@ export default function AdminMembersPage() {
                         onClick={() => handleToggleStatus(item.member)}
                         className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                           item.member.status === 'active'
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40'
+                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-950/40'
                             : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/40'
                         }`}
                       >
                         {item.member.status === 'active' ? 'Disable' : 'Reactivate'}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmMember(item.member)}
+                        className="p-1.5 text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/40 rounded-lg transition-colors"
+                        title="Delete Member Account"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
@@ -437,7 +478,7 @@ export default function AdminMembersPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Link
                 href={`/admin/members/${item.member.id}`}
                 className="flex-1 py-1.5 text-center text-xs font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg"
@@ -454,11 +495,18 @@ export default function AdminMembersPage() {
                 onClick={() => handleToggleStatus(item.member)}
                 className={`py-1.5 px-3 text-xs font-semibold rounded-lg ${
                   item.member.status === 'active'
-                    ? 'bg-red-50 text-red-600'
+                    ? 'bg-amber-50 text-amber-600'
                     : 'bg-emerald-50 text-emerald-600'
                 }`}
               >
                 {item.member.status === 'active' ? 'Disable' : 'Reactivate'}
+              </button>
+              <button
+                onClick={() => setDeleteConfirmMember(item.member)}
+                className="py-1.5 px-2.5 text-xs font-semibold bg-red-50 text-red-600 rounded-lg"
+                title="Delete Member Account"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </Card>
@@ -690,6 +738,83 @@ export default function AdminMembersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Delete Member Confirmation Modal */}
+      {deleteConfirmMember && (
+        <Modal
+          isOpen={!!deleteConfirmMember}
+          onClose={() => setDeleteConfirmMember(null)}
+          title="Delete Member Account"
+          description="Permanently remove this member profile and all associated data"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-900 dark:text-red-200 space-y-1">
+                <p className="font-bold">Warning: This action cannot be undone!</p>
+                <p>
+                  You are about to permanently delete <strong>{deleteConfirmMember.full_name}</strong> (@{deleteConfirmMember.username}).
+                </p>
+                <p className="text-[11px] opacity-90">
+                  All associated financial records, monthly budgets, expense logs, and credentials for this member will be permanently scrubbed.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteConfirmMember(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmDeleteMember}
+                className="bg-red-600 hover:bg-red-700 text-white gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Delete Account</span>
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Access Request Confirmation Modal */}
+      {deleteConfirmReq && (
+        <Modal
+          isOpen={!!deleteConfirmReq}
+          onClose={() => setDeleteConfirmReq(null)}
+          title="Delete Access Request"
+          description="Remove pending sign-in request"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <p className="font-bold">Are you sure?</p>
+                <p>
+                  This will remove the access request submitted by <strong>{deleteConfirmReq.full_name}</strong> ({deleteConfirmReq.email}).
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteConfirmReq(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmDeleteRequest}
+                className="bg-red-600 hover:bg-red-700 text-white gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Request</span>
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

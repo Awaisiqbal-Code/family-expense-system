@@ -21,6 +21,8 @@ import {
   FileText,
   Clock,
   Edit3,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function AdminMemberDetailPage() {
@@ -36,6 +38,9 @@ export default function AdminMemberDetailPage() {
   // Budget Adjust Modal
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [newBudget, setNewBudget] = useState('');
+
+  // Delete Modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Notes
   const [notes, setNotes] = useState('Member allowance allocated for recurring monthly living expenses.');
@@ -86,6 +91,17 @@ export default function AdminMemberDetailPage() {
     }
   };
 
+  const handleDeleteMember = () => {
+    if (!summary) return;
+    try {
+      DataStore.deleteMember(summary.member.id);
+      success('Account Deleted', `Member account for ${summary.member.full_name} has been permanently deleted.`);
+      router.push('/admin/members');
+    } catch (err: any) {
+      error('Deletion Failed', err?.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Back button & Member Header */}
@@ -118,10 +134,21 @@ export default function AdminMemberDetailPage() {
             </div>
           </div>
 
-          <Button variant="primary" size="sm" onClick={() => setIsBudgetModalOpen(true)}>
-            <WalletIcon className="w-3.5 h-3.5 mr-1.5" />
-            <span>Adjust Budget</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" size="sm" onClick={() => setIsBudgetModalOpen(true)}>
+              <WalletIcon className="w-3.5 h-3.5 mr-1.5" />
+              <span>Adjust Budget</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1" />
+              <span>Delete Member</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -298,6 +325,46 @@ export default function AdminMemberDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Delete Member Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          title="Delete Member Account"
+          description="Permanently scrub account and all financial records"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-900 dark:text-red-200 space-y-1">
+                <p className="font-bold">Critical Action Warning</p>
+                <p>
+                  You are about to permanently delete <strong>{summary.member.full_name}</strong> (@{summary.member.username}).
+                </p>
+                <p className="text-[11px] opacity-90">
+                  All budget allocations, expense records, notes, and credentials for this member will be permanently deleted.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => setIsDeleteModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleDeleteMember}
+                className="bg-red-600 hover:bg-red-700 text-white gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Permanent Deletion</span>
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
